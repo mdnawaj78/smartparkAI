@@ -1,56 +1,25 @@
-"use client";
-
+"use client"; 
 import { useMemo, useState } from "react";
 import {
   APIProvider,
   Map,
   AdvancedMarker,
   Pin,
-  InfoWindow,
 } from "@vis.gl/react-google-maps";
 import { useCurrentLocation } from "@/app/hooks/useCurrentLocation";
 import { calculateDistance } from "@/lib/calculateDistance";
+import { parkingSpots, type ParkingSpot } from "./parkingData";
+import DemoRouteLine from "./DemoRouteLine";
+import ParkingInfoWindow from "./ParkingInfoWindow";
 
-const parkingSpots = [
-  {
-    id: 1,
-    name: "Dubai Marina Parking",
-    lat: 25.08,
-    lng: 55.14,
-    status: "Available",
-    slots: 120,
-    aiScore: 92,
-  },
-  {
-    id: 2,
-    name: "Mall Parking",
-    lat: 25.197,
-    lng: 55.279,
-    status: "Busy",
-    slots: 15,
-    aiScore: 64,
-  },
-  {
-    id: 3,
-    name: "Tower Parking",
-    lat: 25.2048,
-    lng: 55.2708,
-    status: "Full",
-    slots: 0,
-    aiScore: 8,
-  },
-];
-
-type ParkingSpot = (typeof parkingSpots)[0] & {
-  calculatedDistance?: string;
-  distanceValue?: number;
-};
 
 export default function SmartMap() {
   const location = useCurrentLocation();
 
   const [selectedParking, setSelectedParking] =
     useState<ParkingSpot | null>(null);
+
+  const [routeParking, setRouteParking] = useState<ParkingSpot | null>(null);
 
   const getPinColor = (status: string) => {
     if (status === "Available") return "#22c55e";
@@ -69,10 +38,16 @@ export default function SmartMap() {
           ? Number(distanceStr.replace(" km", "")) || 999999
           : 999999;
 
+        const estimatedMinutes =
+          location && distanceValue !== 999999
+            ? Math.max(2, Math.round(distanceValue * 2.5))
+            : null;
+
         return {
           ...item,
           calculatedDistance: distanceStr,
           distanceValue,
+          estimatedMinutes,
         };
       })
       .sort((a, b) => a.distanceValue - b.distanceValue);
@@ -83,12 +58,21 @@ export default function SmartMap() {
       <div className="space-y-6">
         <div className="h-[550px] w-full overflow-hidden rounded-xl border shadow-lg">
           <Map
-             mapId="smartpark-map"
-              style={{ width: "100%", height: "100%" }}
-              defaultZoom={12}
-              defaultCenter={location || { lat: 25.2048, lng: 55.2708 }}
-              gestureHandling="greedy"
+            mapId="smartpark-map"
+            style={{ width: "100%", height: "100%" }}
+            defaultZoom={12}
+            defaultCenter={location || { lat: 25.2048, lng: 55.2708 }}
+            gestureHandling="greedy"
           >
+            <DemoRouteLine
+               userLocation={location}
+                parkingLocation={
+                  routeParking
+                    ? { lat: routeParking.lat, lng: routeParking.lng }
+                    : null
+                }
+            />
+
             {location && (
               <AdvancedMarker position={location}>
                 <Pin
@@ -114,39 +98,16 @@ export default function SmartMap() {
             ))}
 
             {selectedParking && (
-              <InfoWindow
-                position={{
-                  lat: selectedParking.lat,
-                  lng: selectedParking.lng,
-                }}
-                onCloseClick={() => setSelectedParking(null)}
-              >
-                <div className="min-w-[240px] p-1 text-sm">
-                  <h3 className="mb-2 text-base font-bold">
-                    {selectedParking.name}
-                  </h3>
-
-                  <p>
-                    <strong>Status:</strong> {selectedParking.status}
-                  </p>
-                  <p>
-                    <strong>Slots:</strong> {selectedParking.slots}
-                  </p>
-                  <p>
-                    <strong>Distance:</strong>{" "}
-                    {selectedParking.calculatedDistance}
-                  </p>
-                  <p>
-                    <strong>AI Score:</strong> {selectedParking.aiScore}%
-                  </p>
-
-                  <button className="mt-4 w-full rounded bg-black py-2.5 font-medium text-white transition hover:bg-gray-800">
-                    Book Parking
-                  </button>
-                </div>
-              </InfoWindow>
-            )}
-          </Map>
+            <ParkingInfoWindow
+              parking={selectedParking}
+              onClose={() => setSelectedParking(null)}
+              onShowRoute={() => setRouteParking(selectedParking)}
+              onBookParking={() =>
+                alert(`Booking started for ${selectedParking.name}`)
+              }
+            />
+          )}
+        </Map>
         </div>
 
         <div>
@@ -168,13 +129,25 @@ export default function SmartMap() {
                 <h3 className="mt-2 font-bold">{item.name}</h3>
                 <p className="mt-1 text-sm">Status: {item.status}</p>
                 <p className="text-sm">Slots: {item.slots}</p>
+                <p className="text-sm">Distance: {item.calculatedDistance}</p>
                 <p className="text-sm">
-                  Distance: {item.calculatedDistance}
+                  Demo ETA:{" "}
+                  {item.estimatedMinutes
+                    ? `${item.estimatedMinutes} min`
+                    : "Enable location"}
                 </p>
                 <p className="text-sm">AI Score: {item.aiScore}%</p>
 
-                <button className="mt-4 w-full rounded bg-black py-2 text-sm text-white">
-                  View on Map
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedParking(item);
+                    setRouteParking(item);
+                  }}
+                  className="mt-4 w-full rounded bg-black
+                   py-2 text-sm text-white"
+                >
+                  Show Smart Route
                 </button>
               </div>
             ))}
