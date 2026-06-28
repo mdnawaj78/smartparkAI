@@ -33,3 +33,8 @@ export type ParkingSpot = (typeof parkingSpots)[0] & {
   distanceValue?: number;
   estimatedMinutes?: number | null;
 };
+export type ParkingWithDistance = ParkingSpot & {
+  calculatedDistance: string;
+  distanceValue: number;
+  estimatedMinutes: number | null;
+};

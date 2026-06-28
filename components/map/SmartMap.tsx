@@ -8,7 +8,7 @@ import {
 } from "@vis.gl/react-google-maps";
 import { useCurrentLocation } from "@/app/hooks/useCurrentLocation";
 import { calculateDistance } from "@/lib/calculateDistance";
-import { parkingSpots, type ParkingSpot } from "./parkingData";
+import { parkingSpots, type ParkingWithDistance } from "./parkingData";
 import DemoRouteLine from "./DemoRouteLine";
 import ParkingInfoWindow from "./ParkingInfoWindow";
 
@@ -16,10 +16,7 @@ import ParkingInfoWindow from "./ParkingInfoWindow";
 export default function SmartMap() {
   const location = useCurrentLocation();
 
-  const [selectedParking, setSelectedParking] =
-    useState<ParkingSpot | null>(null);
-
-  const [routeParking, setRouteParking] = useState<ParkingSpot | null>(null);
+  
 
   const getPinColor = (status: string) => {
     if (status === "Available") return "#22c55e";
@@ -27,7 +24,7 @@ export default function SmartMap() {
     return "#ef4444";
   };
 
-  const parkingWithDistance = useMemo(() => {
+  const parkingWithDistance = useMemo<ParkingWithDistance[]>(() => {
     return parkingSpots
       .map((item) => {
         const distanceStr = location
@@ -52,6 +49,12 @@ export default function SmartMap() {
       })
       .sort((a, b) => a.distanceValue - b.distanceValue);
   }, [location]);
+
+  const [selectedParking, setSelectedParking] =
+  useState<ParkingWithDistance | null>(null);
+
+  const [routeParking, setRouteParking] =
+  useState<ParkingWithDistance | null>(null);
 
   return (
     <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}>
