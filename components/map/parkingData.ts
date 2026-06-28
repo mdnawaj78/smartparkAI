@@ -1,4 +1,22 @@
-export const parkingSpots = [
+export type ParkingStatus = "Available" | "Busy" | "Full";
+
+export type ParkingSpot = {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  status: ParkingStatus;
+  slots: number;
+  aiScore: number;
+};
+
+export type ParkingWithDistance = ParkingSpot & {
+  calculatedDistance: string;
+  distanceValue: number;
+  estimatedMinutes: number | null;
+};
+
+export const parkingSpots: ParkingSpot[] = [
   {
     id: 1,
     name: "Dubai Marina Parking",
@@ -27,14 +45,3 @@ export const parkingSpots = [
     aiScore: 8,
   },
 ];
-
-export type ParkingSpot = (typeof parkingSpots)[0] & {
-  calculatedDistance?: string;
-  distanceValue?: number;
-  estimatedMinutes?: number | null;
-};
-export type ParkingWithDistance = ParkingSpot & {
-  calculatedDistance: string;
-  distanceValue: number;
-  estimatedMinutes: number | null;
-};
