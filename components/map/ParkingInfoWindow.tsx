@@ -1,7 +1,7 @@
 "use client";
 
 import { InfoWindow } from "@vis.gl/react-google-maps";
-import type { ParkingSpot } from "./parkingData";
+import type { ParkingSpot } from "@/components/data/mock/parkingData";
 
 type ParkingWithDistance = ParkingSpot & {
   calculatedDistance?: string;

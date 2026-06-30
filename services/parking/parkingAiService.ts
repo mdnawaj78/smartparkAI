@@ -1,4 +1,4 @@
-import type { ParkingWithDistance } from "./parkingData";
+import type { ParkingWithDistance } from "@/components/map/parkingData";
 
 export type ParkingPrediction = {
   demandLevel: "Low" | "Medium" | "High";

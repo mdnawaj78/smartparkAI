@@ -1,7 +1,7 @@
 // app/components/parking/AIRecommendedCard.tsx
 
 
-import type { RecommendedParking } from "./parkingAiService";
+import type { RecommendedParking } from "@/services/parking/parkingAiService";
 
 type AIRecommendedCardProps = {
   parking: RecommendedParking | null;

@@ -1,37 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   APIProvider,
   Map,
   AdvancedMarker,
   Pin,
 } from "@vis.gl/react-google-maps";
+
 import { useCurrentLocation } from "@/app/hooks/useCurrentLocation";
 import { calculateDistance } from "@/lib/calculateDistance";
-import { parkingSpots, type ParkingWithDistance } from "./parkingData";
+
+import {
+  parkingSpots,
+  type ParkingWithDistance,
+} from "@/components/data/mock/parkingData";
 import DemoRouteLine from "./DemoRouteLine";
 import ParkingInfoWindow from "./ParkingInfoWindow";
+import { normalizeParkingData } from "@/services/parking/availabilityService";
+import { simulateParkingAvailability } from "@/services/parking/parkingSimulationService";
+import {
+  createDemoBooking,
+  reserveParkingSlot,
+  cancelParkingReservation,
+  type Booking,
+} from "@/services/booking/bookingService";
+import ParkingList from "./ParkingList";
+
 import AIRecommendedCard from "../parking/AIRecommendedCard";
-import { getRecommendedParking } from "../parking/parkingAiService";
+import { getRecommendedParking } from "@/services/parking/parkingAiService";
+import BookingDetailsCard from "./BookingDetailsCard";
+import ParkingMarkers from "./ParkingMarkers";
 
 export default function SmartMap() {
   const location = useCurrentLocation();
 
-  const [selectedParking, setSelectedParking] =
-    useState<ParkingWithDistance | null>(null);
+  const [liveParkingSpots, setLiveParkingSpots] = useState(parkingSpots);
+  const [selectedParkingId, setSelectedParkingId] = useState<number | null>(
+    null
+  );
+  const [routeParkingId, setRouteParkingId] = useState<number | null>(null);
+  const [lastBooking, setLastBooking] = useState<Booking | null>(null);
 
-  const [routeParking, setRouteParking] =
-    useState<ParkingWithDistance | null>(null);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveParkingSpots((currentParkings) =>
+        simulateParkingAvailability(currentParkings)
+      );
+    }, 5000);
 
-  const getPinColor = (status: string) => {
-    if (status === "Available") return "#22c55e";
-    if (status === "Busy") return "#eab308";
-    return "#ef4444";
-  };
+    return () => clearInterval(interval);
+  }, []);
 
   const parkingWithDistance = useMemo<ParkingWithDistance[]>(() => {
-    return parkingSpots
+    return normalizeParkingData(liveParkingSpots)
       .map((item) => {
         const distanceStr = location
           ? calculateDistance(location.lat, location.lng, item.lat, item.lng)
@@ -54,16 +76,57 @@ export default function SmartMap() {
         };
       })
       .sort((a, b) => a.distanceValue - b.distanceValue);
-  }, [location]);
+  }, [location, liveParkingSpots]);
 
   const recommendedParking = useMemo(() => {
     return getRecommendedParking(parkingWithDistance);
   }, [parkingWithDistance]);
 
-  return (
+  const selectedParking = useMemo(() => {
+    return parkingWithDistance.find((p) => p.id === selectedParkingId) ?? null;
+  }, [parkingWithDistance, selectedParkingId]);
+
+  const routeParking = useMemo(() => {
+    return parkingWithDistance.find((p) => p.id === routeParkingId) ?? null;
+  }, [parkingWithDistance, routeParkingId]);
+
+  const handleBookParking = (parking: ParkingWithDistance) => {
+    if (parking.slots <= 0 || parking.status === "Full") {
+      alert("Sorry, this parking is currently full.");
+      return;
+    }
+
+    const booking = createDemoBooking(parking);
+
+    setLiveParkingSpots((currentParkings) =>
+      reserveParkingSlot(currentParkings, parking.id)
+    );
+
+    setLastBooking(booking);
+
+    alert(`Booking confirmed for ${booking.parkingName}`);
+  };
+
+    const handleCancelBooking = (booking: Booking) => {
+        setLiveParkingSpots((currentParkings) =>
+          cancelParkingReservation(currentParkings, booking.parkingId)
+        );
+
+        setLastBooking(null);
+
+        alert(`Booking cancelled for ${booking.parkingName}`);
+      };
+        return (
     <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}>
       <div className="space-y-6">
         <AIRecommendedCard parking={recommendedParking} />
+
+        {lastBooking && (
+          <BookingDetailsCard
+            booking={lastBooking}
+            onCancel={() => handleCancelBooking(lastBooking)}
+          />
+        )}
 
         <div className="h-[550px] w-full overflow-hidden rounded-xl border shadow-lg">
           <Map
@@ -92,77 +155,27 @@ export default function SmartMap() {
               </AdvancedMarker>
             )}
 
-            {parkingWithDistance.map((item) => (
-              <AdvancedMarker
-                key={item.id}
-                position={{ lat: item.lat, lng: item.lng }}
-                onClick={() => setSelectedParking(item)}
-              >
-                <Pin
-                  background={getPinColor(item.status)}
-                  borderColor={getPinColor(item.status)}
-                  glyphColor="white"
-                />
-              </AdvancedMarker>
-            ))}
+           <ParkingMarkers
+            parkings={parkingWithDistance}
+            onSelectParking={setSelectedParkingId}
+          />
 
             {selectedParking && (
               <ParkingInfoWindow
                 parking={selectedParking}
-                onClose={() => setSelectedParking(null)}
-                onShowRoute={() => setRouteParking(selectedParking)}
-                onBookParking={() =>
-                  alert(`Booking started for ${selectedParking.name}`)
-                }
+                onClose={() => setSelectedParkingId(null)}
+                onShowRoute={() => setRouteParkingId(selectedParking.id)}
+                onBookParking={() => handleBookParking(selectedParking)}
               />
             )}
           </Map>
         </div>
-
-        <div>
-          <h2 className="mb-4 text-xl font-bold">
-            Nearest Parking Recommendations
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {parkingWithDistance.map((item, index) => (
-              <div
-                key={item.id}
-                className="cursor-pointer rounded-xl border p-5 shadow-sm transition-all hover:shadow-md"
-                onClick={() => setSelectedParking(item)}
-              >
-                <p className="text-sm font-semibold text-blue-600">
-                  #{index + 1} Nearest
-                </p>
-
-                <h3 className="mt-2 font-bold">{item.name}</h3>
-                <p className="mt-1 text-sm">Status: {item.status}</p>
-                <p className="text-sm">Slots: {item.slots}</p>
-                <p className="text-sm">Distance: {item.calculatedDistance}</p>
-
-                <p className="text-sm">
-                  Demo ETA:{" "}
-                  {item.estimatedMinutes
-                    ? `${item.estimatedMinutes} min`
-                    : "Enable location"}
-                </p>
-
-                <p className="text-sm">AI Score: {item.aiScore}%</p>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedParking(item);
-                    setRouteParking(item);
-                  }}
-                  className="mt-4 w-full rounded bg-black py-2 text-sm text-white"
-                >
-                  Show Smart Route
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+            <ParkingList
+            parkings={parkingWithDistance}
+            onSelectParking={setSelectedParkingId}
+            onShowRoute={setRouteParkingId}
+          />
+       
       </div>
     </APIProvider>
   );
